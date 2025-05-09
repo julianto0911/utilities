@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/stretchr/testify/mock"
 )
 
 /*
@@ -18,6 +20,15 @@ range ("validate:range[val1,val2]"), value typed must be in range of value decla
 optx ("validate:optx=[length]") , if have value, length must be at least of value
 opty ("validate:opty=[length]") , if have value, length must be same or less than value
 */
+
+type MockValidator struct {
+	mock.Mock
+}
+
+func (m *MockValidator) Validate(item any) error {
+	args := m.Called(item)
+	return args.Error(0)
+}
 
 func NewValidator() Validator {
 	return validator{}
