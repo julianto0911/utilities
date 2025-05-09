@@ -95,6 +95,15 @@ func ConnectDB(cfg DBConfiguration) (*sql.DB, error) {
 	return sql, nil
 }
 
+func InitGorm(sqlConn *sql.DB, cfg DBConfiguration) (*gorm.DB, error) {
+	dbLogger := CreateLogger(cfg.Logging)
+	db, err := NewGormDB(cfg.DbType, sqlConn, dbLogger, cfg.Logging)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
 func makeConnString(dbtype, conName, host, port, user, dbname, password string, timeOut int) string {
 	if dbtype == Postgresql {
 		return fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable password=%s connect_timeout=%d application_name=%s",
