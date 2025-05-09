@@ -1,6 +1,7 @@
 package utilities
 
 import (
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -21,4 +22,14 @@ func EnvBool(envName string) bool {
 }
 func EnvString(envName string) string {
 	return os.Getenv(envName)
+}
+
+var letters = []rune("1234567890abcdefghijklmnopqrstuvwxyz")
+
+func RandomString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
