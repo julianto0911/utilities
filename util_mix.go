@@ -1,6 +1,12 @@
 package utilities
 
-import "github.com/redis/go-redis/v9"
+import (
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/redis/go-redis/v9"
+)
 
 func NewRedisClient(url, port, password string, dbIndex int) *redis.Client {
 	return redis.NewClient(&redis.Options{
@@ -8,4 +14,21 @@ func NewRedisClient(url, port, password string, dbIndex int) *redis.Client {
 		Password: password,
 		DB:       dbIndex,
 	})
+}
+
+func EnvArray(envName string) []string {
+	val := os.Getenv(envName)
+	ar := strings.Split(val, ",")
+	return ar
+}
+func EnvInt(envName string) int {
+	val, _ := strconv.Atoi(os.Getenv(envName))
+	return val
+}
+func EnvBool(envName string) bool {
+	val := os.Getenv(envName)
+	return strings.ToUpper(val) == "TRUE"
+}
+func EnvString(envName string) string {
+	return os.Getenv(envName)
 }

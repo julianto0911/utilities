@@ -50,6 +50,37 @@ const (
 	Postgresql = "postgres"
 )
 
+func GetDBConfig() DBConfiguration {
+	cfg := DBConfiguration{
+		Host:           EnvString("DB_HOST"),
+		DBName:         EnvString("DB_NAME"),
+		Username:       EnvString("DB_USERNAME"),
+		Password:       EnvString("DB_PASSWORD"),
+		Logging:        EnvBool("DB_DEBUG"),
+		Port:           EnvString("DB_PORT"),
+		Schema:         EnvString("DB_SCHEMA"),
+		SessionName:    EnvString("DB_SESSION_NAME"),
+		ConnectTimeOut: EnvInt("DB_CONNECT_TIMEOUT"),
+		MaxOpenConn:    EnvInt("DB_MAX_OPEN_CONN"),
+		MaxIdleConn:    EnvInt("DB_MAX_IDLE_CONN"),
+	}
+
+	//default db connection time out
+	if cfg.ConnectTimeOut == 0 {
+		cfg.ConnectTimeOut = 30
+	}
+	//default db maximum open connection
+	if cfg.MaxOpenConn == 0 {
+		cfg.MaxOpenConn = 50
+	}
+	//default db maximum idle connection
+	if cfg.MaxIdleConn == 0 {
+		cfg.MaxIdleConn = 10
+	}
+
+	return cfg
+}
+
 func ConnectDB(cfg DBConfiguration) (*sql.DB, error) {
 	connString := makeConnString(cfg.DbType, cfg.SessionName, cfg.Host, cfg.Port, cfg.Username, cfg.DBName, cfg.Password, cfg.ConnectTimeOut)
 	sql, err := sql.Open(cfg.DbType, connString)
