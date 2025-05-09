@@ -19,6 +19,18 @@ type RedisConfiguration struct {
 	UseMock  bool
 }
 
+func GetRedisConfig() RedisConfiguration {
+	cfg := RedisConfiguration{
+		Host:     EnvString("REDIS_HOST"),
+		Port:     EnvString("REDIS_PORT"),
+		Password: EnvString("REDIS_PASSWORD"),
+		Prefix:   EnvString("REDIS_PREFIX"),
+		UseMock:  EnvBool("REDIS_USE_MOCK"),
+	}
+
+	return cfg
+}
+
 func NewRedisClient(url, port, password string, dbIndex int) *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr:     url + ":" + port,

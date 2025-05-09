@@ -31,6 +31,23 @@ func NewStorage(s3 S3) Storage {
 	return &storage{s3: s3}
 }
 
+func GetS3Config() S3Config {
+	cfg := S3Config{
+		Bucket:          EnvString("S3_BUCKET"),
+		Path:            EnvString("S3_PATH"),
+		Region:          EnvString("S3_REGION"),
+		AccessKeyID:     EnvString("S3_ACCESS_KEY_ID"),
+		SecretAccessKey: EnvString("S3_SECRET_ACCESS_KEY"),
+		Token:           EnvString("S3_TOKEN"),
+		Endpoint:        EnvString("S3_ENDPOINT"),
+		S3TenantID:      EnvString("S3_TENANT_ID"),
+		DoStream:        EnvBool("S3_DO_STREAM"),
+		Acl:             EnvString("S3_ACL"),
+	}
+
+	return cfg
+}
+
 type Storage interface {
 	UploadS3File(ctx context.Context, basePath, imagePath string) (string, error)
 	RemoveS3File(path string) error

@@ -23,6 +23,17 @@ type MailerConfig struct {
 	AuthPassword string
 }
 
+func GetMailerConfig() MailerConfig {
+	cfg := MailerConfig{
+		Host:         EnvString("MAILER_HOST"),
+		Port:         EnvInt("MAILER_PORT"),
+		AuthEmail:    EnvString("AUTH_EMAIL"),
+		AuthPassword: EnvString("AUTH_PASSWORD"),
+	}
+
+	return cfg
+}
+
 func NewMailer(config MailerConfig) Mailer {
 	return &mailer{
 		Config: config,

@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+func GetRabbitMQConfig() RabbitMQConfig {
+	return RabbitMQConfig{
+		Host:     EnvString("RABBIT_HOST"),
+		Port:     EnvString("RABBIT_PORT"),
+		User:     EnvString("RABBIT_USER"),
+		Password: EnvString("RABBIT_PASSWORD"),
+	}
+}
+
 type RabbitMQConfig struct {
 	Host     string
 	Port     string
