@@ -40,11 +40,6 @@ func (m *MockRedis) Delete(name string) error {
 	return args.Error(0)
 }
 
-func (m *MockRedis) GetKeysWithParam(name string) ([]string, error) {
-	args := m.Called(name)
-	return args.Get(0).([]string), args.Error(1)
-}
-
 func (m *MockRedis) PrintKeys() {
 	m.Called()
 }
