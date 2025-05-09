@@ -6,9 +6,48 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/mock"
 )
 
 // this is useful for testing, to predefined behavior of the response
+
+type MockRedis struct {
+	mock.Mock
+}
+
+func (m *MockRedis) Ping() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockRedis) Get(name string) (string, error) {
+	args := m.Called(name)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockRedis) Set(name string, value string) error {
+	args := m.Called(name, value)
+	return args.Error(0)
+}
+
+func (m *MockRedis) SetWithDuration(name string, value string, d time.Duration) error {
+	args := m.Called(name, value, d)
+	return args.Error(0)
+}
+
+func (m *MockRedis) Delete(name string) error {
+	args := m.Called(name)
+	return args.Error(0)
+}
+
+func (m *MockRedis) GetKeysWithParam(name string) ([]string, error) {
+	args := m.Called(name)
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockRedis) PrintKeys() {
+	m.Called()
+}
 
 type Redis interface {
 	Ping() error
@@ -16,7 +55,6 @@ type Redis interface {
 	Set(name string, value string) error
 	SetWithDuration(name string, value string, d time.Duration) error
 	Delete(name string) error
-	GetKeysWithParam(name string) ([]string, error)
 	PrintKeys()
 }
 
@@ -72,8 +110,4 @@ func (c *rds) Delete(name string) error {
 
 func (c *rds) Ping() error {
 	return c.rdb.Ping(context.Background()).Err()
-}
-
-func (c *rds) GetKeysWithParam(name string) ([]string, error) {
-	return c.rdb.Keys(context.Background(), c.prefix+"_"+name).Result()
 }
