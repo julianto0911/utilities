@@ -11,6 +11,14 @@ import (
 
 // this is useful for testing, to predefined behavior of the response
 
+type RedisConfiguration struct {
+	Host     string
+	Port     string
+	Password string
+	Prefix   string
+	UseMock  bool
+}
+
 type MockRedis struct {
 	mock.Mock
 }
