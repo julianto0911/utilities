@@ -29,6 +29,16 @@ example :
 ctx.WithValue("dbname", "db1")
 ctx.WithValue("dbuser", "user1")
 */
+
+func (m *DBManager) DB(ctx context.Context) (*gorm.DB, error) {
+	db, err := m.GetConnection(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
 func (m *DBManager) GetConnection(ctx context.Context) (*gorm.DB, error) {
 	dbName := fmt.Sprintf("%s", ctx.Value("dbname"))
 	dbUser := fmt.Sprintf("%s", ctx.Value("dbuser"))
