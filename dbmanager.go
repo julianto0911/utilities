@@ -24,18 +24,17 @@ func (m *MockDBManager) CloseConnections() error {
 	return args.Error(0)
 }
 
-type DBManager struct {
-	connections map[string]*gorm.DB
-	mu          sync.RWMutex
-	config      DBConfiguration
-}
-
 // Multi database connection manager
-func NewDBManager(defaultConfig DBConfiguration) *DBManager {
-	return &DBManager{
+func NewDBManager(defaultConfig DBConfiguration) DBManager {
+	return &dbmanager{
 		connections: make(map[string]*gorm.DB),
 		config:      defaultConfig,
 	}
+}
+
+type DBManager interface {
+	DB(ctx context.Context) (*gorm.DB, error)
+	CloseConnections() error
 }
 
 /*
@@ -43,9 +42,13 @@ Use context to pass value of database and db username
 example :
 ctx.WithValue("dbname", "db1")
 ctx.WithValue("dbuser", "user1")
-*/
+*/type dbmanager struct {
+	connections map[string]*gorm.DB
+	mu          sync.RWMutex
+	config      DBConfiguration
+}
 
-func (m *DBManager) DB(ctx context.Context) (*gorm.DB, error) {
+func (m *dbmanager) DB(ctx context.Context) (*gorm.DB, error) {
 	dbName := fmt.Sprintf("%s", ctx.Value("dbname"))
 	dbUser := fmt.Sprintf("%s", ctx.Value("dbuser"))
 	if dbName == "" {
@@ -72,7 +75,7 @@ func (m *DBManager) DB(ctx context.Context) (*gorm.DB, error) {
 	return db.WithContext(ctx), nil
 }
 
-func (m *DBManager) createConnection(dbname, dbuser string) (*gorm.DB, error) {
+func (m *dbmanager) createConnection(dbname, dbuser string) (*gorm.DB, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -105,7 +108,7 @@ func (m *DBManager) createConnection(dbname, dbuser string) (*gorm.DB, error) {
 }
 
 // Close all connections before exit application
-func (m *DBManager) CloseConnections() error {
+func (m *dbmanager) CloseConnections() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
