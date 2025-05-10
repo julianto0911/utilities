@@ -5,9 +5,24 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/stretchr/testify/mock"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+type MockDBManager struct {
+	mock.Mock
+}
+
+func (m *MockDBManager) DB(ctx context.Context) (*gorm.DB, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(*gorm.DB), args.Error(1)
+}
+
+func (m *MockDBManager) CloseConnections() error {
+	args := m.Called()
+	return args.Error(0)
+}
 
 type DBManager struct {
 	connections map[string]*gorm.DB
