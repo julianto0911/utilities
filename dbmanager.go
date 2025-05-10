@@ -61,10 +61,15 @@ func (m *DBManager) DB(ctx context.Context) (*gorm.DB, error) {
 	m.mu.RUnlock()
 
 	if exists {
-		return db, nil
+		return db.WithContext(ctx), nil
 	}
 
-	return m.createConnection(dbName, dbUser)
+	db, err := m.createConnection(dbName, dbUser)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection: %w", err)
+	}
+
+	return db.WithContext(ctx), nil
 }
 
 func (m *DBManager) createConnection(dbname, dbuser string) (*gorm.DB, error) {
