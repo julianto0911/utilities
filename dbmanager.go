@@ -42,7 +42,8 @@ Use context to pass value of database and db username
 example :
 ctx.WithValue("dbname", "db1")
 ctx.WithValue("dbuser", "user1")
-*/type dbmanager struct {
+*/
+type dbmanager struct {
 	connections map[string]*gorm.DB
 	mu          sync.RWMutex
 	config      DBConfiguration
