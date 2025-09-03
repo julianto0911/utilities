@@ -3,6 +3,7 @@ package utilities
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/stretchr/testify/mock"
@@ -129,4 +130,37 @@ func (m *dbmanager) CloseConnections() error {
 		return fmt.Errorf("errors closing connections: %v", errs)
 	}
 	return nil
+}
+
+func WithDB(dbm DBManager, ctx context.Context, fn func(db *gorm.DB) error) error {
+	db, err := dbm.DB(ctx)
+	if err != nil {
+		return err
+	}
+
+	return fn(db)
+}
+
+func Paging(page, limit int) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		offset := (page - 1) * limit
+		return db.Offset(offset).Limit(limit)
+	}
+}
+
+func Sorting(sort, order *string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if sort == nil || order == nil {
+			return db
+		}
+
+		col := strings.ToLower(*sort)
+		dir := strings.ToLower(*order)
+
+		if dir != "asc" && dir != "desc" {
+			return db
+		}
+
+		return db.Order(fmt.Sprintf("%s %s", col, dir))
+	}
 }
