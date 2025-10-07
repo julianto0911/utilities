@@ -42,6 +42,12 @@ type validator struct{}
 
 func (c validator) Validate(item any) error {
 	val := reflect.ValueOf(item)
+
+	// If it's a pointer, dereference it
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+
 	for i := range val.NumField() {
 		var err error
 		fieldType := val.Type().Field(i)
