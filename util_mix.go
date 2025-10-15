@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid/v4"
 	"golang.org/x/crypto/bcrypt"
@@ -53,4 +54,15 @@ func RandomString(n int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+func GetAuthHeader(c *gin.Context) string {
+	token := c.GetHeader("Authorization")
+	if token == "" {
+		return ""
+	}
+
+	//retrieve token from header
+	token = strings.TrimPrefix(token, "Bearer ")
+	return token
 }
