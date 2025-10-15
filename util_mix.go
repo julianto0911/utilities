@@ -56,7 +56,7 @@ func RandomString(n int) string {
 	return string(b)
 }
 
-func GetAuthHeader(c *gin.Context) string {
+func GetAuthToken(c *gin.Context) string {
 	token := c.GetHeader("Authorization")
 	if token == "" {
 		return ""
