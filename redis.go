@@ -63,6 +63,11 @@ func (m *MockRedis) SetWithDuration(name string, value string, d time.Duration) 
 	return args.Error(0)
 }
 
+func (m *MockRedis) SetNXWithDuration(name string, value string, d time.Duration) (bool, error) {
+	args := m.Called(name, value, d)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *MockRedis) Delete(name string) error {
 	args := m.Called(name)
 	return args.Error(0)
@@ -77,6 +82,7 @@ type Redis interface {
 	Get(name string) (string, error)
 	Set(name string, value string) error
 	SetWithDuration(name string, value string, d time.Duration) error
+	SetNXWithDuration(name string, value string, d time.Duration) (bool, error)
 	Delete(name string) error
 	PrintKeys()
 }
@@ -117,6 +123,11 @@ func (c *rds) PrintKeys() {
 
 func (c *rds) SetWithDuration(name string, value string, d time.Duration) error {
 	return c.rdb.Set(context.Background(), c.prefix+"_"+name, value, d).Err()
+}
+
+func (c *rds) SetNXWithDuration(name string, value string, d time.Duration) (bool, error) {
+	fullKey := c.prefix + "_" + name
+	return c.rdb.SetNX(context.Background(), fullKey, value, d).Result()
 }
 
 func (c *rds) Set(name string, value string) error {
