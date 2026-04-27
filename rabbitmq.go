@@ -126,7 +126,93 @@ func (r *rabbitMQ) dialFreshLocked() error {
 	}
 	r.conn = conn
 	r.channel = ch
+	r.watchNotifyClose(conn, ch, conn.NotifyClose(make(chan *amqp.Error, 1)), ch.NotifyClose(make(chan *amqp.Error, 1)))
 	return nil
+}
+
+func (r *rabbitMQ) watchNotifyClose(
+	conn *amqp.Connection,
+	ch *amqp.Channel,
+	connClose <-chan *amqp.Error,
+	chClose <-chan *amqp.Error,
+) {
+	go func() {
+		var (
+			errClose *amqp.Error
+			source   string
+		)
+		select {
+		case err, ok := <-connClose:
+			source = "connection"
+			if ok {
+				errClose = err
+			}
+		case err, ok := <-chClose:
+			source = "channel"
+			if ok {
+				errClose = err
+			}
+		}
+
+		if r.closed.Load() {
+			return
+		}
+
+		// Tear down the dead connection/channel exactly once, guarded by a
+		// stale check so we don't fight another path that already replaced it.
+		r.mu.Lock()
+		if r.closed.Load() {
+			r.mu.Unlock()
+			return
+		}
+		if r.conn != conn || r.channel != ch {
+			r.mu.Unlock()
+			return
+		}
+		log.Printf("rabbitmq: %s closed (%v), reconnecting", source, errClose)
+		r.teardownLocked()
+		r.mu.Unlock()
+
+		// Retry dial with backoff. Bail out if another path (Publish or the
+		// consume loop) successfully redialed in the meantime.
+		backoff := consumeInitialBackoff
+		for !r.closed.Load() {
+			r.mu.Lock()
+			if r.closed.Load() {
+				r.mu.Unlock()
+				return
+			}
+			if r.connHealthyLocked() {
+				r.mu.Unlock()
+				return
+			}
+			err := r.dialFreshLocked()
+			r.mu.Unlock()
+			if err == nil {
+				log.Printf("rabbitmq: reconnected after notify-close")
+				return
+			}
+			log.Printf("rabbitmq: reconnect after notify-close failed: %v", err)
+			if stopped := r.sleepBackoff(&backoff); stopped {
+				return
+			}
+		}
+	}()
+}
+
+// connHealthyLocked reports whether the current connection and channel are
+// usable. Callers must hold r.mu. amqp091-go's Connection/Channel both expose
+// IsClosed which flips to true the moment the broker, network, or local code
+// closes them, so this is the cheapest way to coordinate between the watcher
+// goroutine and the publish/consume paths without re-dialing twice.
+func (r *rabbitMQ) connHealthyLocked() bool {
+	if r.conn == nil || r.conn.IsClosed() {
+		return false
+	}
+	if r.channel == nil || r.channel.IsClosed() {
+		return false
+	}
+	return true
 }
 
 // rabbitMQConnectionName returns a label shown in `rabbitmqctl list_connections`
@@ -176,6 +262,9 @@ func (r *rabbitMQ) Publish(queueName string, message []byte) error {
 }
 
 func (r *rabbitMQ) publishLocked(queueName string, message []byte) error {
+	if !r.connHealthyLocked() {
+		return errors.New("rabbitmq: not connected")
+	}
 	q, err := r.channel.QueueDeclare(
 		queueName, // name
 		true,      // durable
@@ -225,16 +314,7 @@ func (r *rabbitMQ) consumeLoop(queueName string, handler func([]byte) error) {
 			if stopped := r.sleepBackoff(&backoff); stopped {
 				return
 			}
-			r.mu.Lock()
-			if !r.closed.Load() {
-				r.teardownLocked()
-				if dialErr := r.dialFreshLocked(); dialErr != nil {
-					log.Printf("rabbitmq: reconnect after setup error failed: %v", dialErr)
-				} else {
-					log.Printf("rabbitmq: reconnected after consume setup error (queue=%q)", queueName)
-				}
-			}
-			r.mu.Unlock()
+			r.refreshConnIfNeeded(queueName, "consume setup error")
 			continue
 		}
 		backoff = consumeInitialBackoff
@@ -251,24 +331,34 @@ func (r *rabbitMQ) consumeLoop(queueName string, handler func([]byte) error) {
 		if r.closed.Load() {
 			return
 		}
-		log.Printf("rabbitmq: delivery channel closed for queue %q, reconnecting", queueName)
-
-		r.mu.Lock()
-		if !r.closed.Load() {
-			r.teardownLocked()
-			if dialErr := r.dialFreshLocked(); dialErr != nil {
-				log.Printf("rabbitmq: reconnect after delivery end failed: %v", dialErr)
-			} else {
-				log.Printf("rabbitmq: reconnected after delivery end (queue=%q)", queueName)
-			}
-		}
-		r.mu.Unlock()
-
+		// Delivery channel closed (broker side, channel/connection drop, or
+		// local teardown by watcher). Don't tear down or dial here: just loop
+		// back to declareAndConsumeLocked. If the watcher already redialed,
+		// it succeeds immediately; if not, the setup-error branch above
+		// triggers refreshConnIfNeeded with backoff.
+		log.Printf("rabbitmq: delivery channel closed for queue %q, will re-subscribe", queueName)
 		time.Sleep(consumeDrainRetryPause)
-		if r.closed.Load() {
-			return
-		}
 	}
+}
+
+// refreshConnIfNeeded re-establishes the AMQP connection only when it is
+// actually broken. If the watcher goroutine already redialed, this is a no-op.
+// Holds r.mu briefly per call.
+func (r *rabbitMQ) refreshConnIfNeeded(queueName, reason string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed.Load() {
+		return
+	}
+	if r.connHealthyLocked() {
+		return
+	}
+	r.teardownLocked()
+	if err := r.dialFreshLocked(); err != nil {
+		log.Printf("rabbitmq: reconnect after %s failed (queue=%q): %v", reason, queueName, err)
+		return
+	}
+	log.Printf("rabbitmq: reconnected after %s (queue=%q)", reason, queueName)
 }
 
 func (r *rabbitMQ) declareAndConsumeLocked(queueName string) (<-chan amqp.Delivery, error) {
@@ -277,7 +367,7 @@ func (r *rabbitMQ) declareAndConsumeLocked(queueName string) (<-chan amqp.Delive
 	if r.closed.Load() {
 		return nil, errRabbitMQClosed
 	}
-	if r.channel == nil || r.conn == nil {
+	if !r.connHealthyLocked() {
 		return nil, errors.New("rabbitmq: not connected")
 	}
 
