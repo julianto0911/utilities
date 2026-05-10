@@ -89,6 +89,10 @@ type MailContent struct {
 	Attachments []string
 	Body        MailBody
 	Log         bool
+	// ReplyTo, when non-empty, sets the Reply-To header so vendor
+	// replies route to the tenant's address rather than the SMTP
+	// auth account (which is shared infrastructure).
+	ReplyTo string
 }
 
 func (m *mailer) SendMail(c MailContent) error {
@@ -101,6 +105,10 @@ func (m *mailer) SendMail(c MailContent) error {
 
 	for _, cc := range c.CC {
 		mailer.SetAddressHeader("Cc", cc.Email, cc.Name)
+	}
+
+	if c.ReplyTo != "" {
+		mailer.SetHeader("Reply-To", c.ReplyTo)
 	}
 
 	mailer.SetHeader("Subject", c.Subject)
