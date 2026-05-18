@@ -7,12 +7,21 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/lib/pq"
+	// pgx replaces lib/pq because lib/pq uses unnamed prepared statements
+	// that PgBouncer cannot track in transaction-pool mode — pgx uses named
+	// prepared statements which PgBouncer ≥1.21 handles correctly.
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+// pgDriverName is the driver name registered by pgx/v5/stdlib.
+// We keep DBConfiguration.DbType = "postgres" for backward compatibility
+// (callers, env vars, and connection-string format unchanged) and translate
+// to "pgx" only when calling sql.Open.
+const pgDriverName = "pgx"
 
 type DBParam struct {
 	Host     string
@@ -83,7 +92,11 @@ func GetDBConfig() DBConfiguration {
 
 func ConnectDB(cfg DBConfiguration) (*sql.DB, error) {
 	connString := makeConnString(cfg.DbType, cfg.SessionName, cfg.Host, cfg.Port, cfg.Username, cfg.DBName, cfg.Password, cfg.ConnectTimeOut)
-	sql, err := sql.Open(cfg.DbType, connString)
+	driver := cfg.DbType
+	if cfg.DbType == Postgresql {
+		driver = pgDriverName
+	}
+	sql, err := sql.Open(driver, connString)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +110,10 @@ func ConnectDB(cfg DBConfiguration) (*sql.DB, error) {
 
 func InitGorm(sqlConn *sql.DB, cfg DBConfiguration) (*gorm.DB, error) {
 	dbLogger := CreateLogger(cfg.Logging)
-	db, err := NewGormDB(cfg.DbType, sqlConn, dbLogger, cfg.Logging)
+	// Use the dedicated PreparedStmt flag instead of (mistakenly) reusing Logging.
+	// Previously the GORM PrepareStmt cache was toggled by DB_DEBUG, which conflated
+	// SQL logging with statement caching.
+	db, err := NewGormDB(cfg.DbType, sqlConn, dbLogger, cfg.PreparedStmt)
 	if err != nil {
 		return nil, err
 	}
